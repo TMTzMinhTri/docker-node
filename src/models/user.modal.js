@@ -18,8 +18,7 @@ const UserSchema = new mongoose.Schema({
         type: String
     },
     shopName: {
-        type: String,
-        required: true
+        type: String
     },
     login_token: {
         type: String,
@@ -34,6 +33,10 @@ const UserSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     },
+    step: {
+        type: Number,
+        default: 1
+    }
 
 });
 

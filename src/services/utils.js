@@ -46,6 +46,6 @@ module.exports = {
         const payload = {
             user: { id: user._id }
         }
-        return jwt.sign(payload, process.env.JWTSECRETKEY, { expiresIn: "1h" })
+        return jwt.sign(payload, process.env.JWTSECRETKEY, { expiresIn: 60 * 60 * 60 * 60 })
     }
 }

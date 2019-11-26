@@ -5,6 +5,7 @@ const {
 } = require('express-validator');
 const gravatar = require('gravatar');
 const jwt = require('jsonwebtoken');
+const randomstring = require('randomstring')
 
 const cloudinary = require('../services/cloudinary.config')
 const upload = require('../services/multer.config')
@@ -17,18 +18,109 @@ const {
   createLoginToken
 } = require('../services/utils')
 const User = require('../models/user.modal')
+const Session = require("../models/session.modal")
 
 
+router.get('/session', async (req, res) => {
+  const session_id = randomstring.generate(10)
+  session = new Session({ session_id }, { _id: false })
+  await session.save()
+  res.json({
+    data: {
+      session_id
+    },
+    error: null,
+    success: true
+  })
+})
+
+
+router.post('/', async (req, res) => {
+  const { name, email, password } = req.body
+
+  try {
+    const exist = await User.exists({ email })
+    if (exist === true) {
+      return res.status(400).json({
+        data: null,
+        error: {
+          code: 400,
+          message: "Email đã có người sử dụng",
+        },
+        success: false
+      })
+    }
+
+    else {
+      const session_id = randomstring.generate(10)
+      user = new User({ name, password, session_id })
+      await user.save()
+      return res.status(200).json({
+        data: {
+          session_id
+        },
+        error: null,
+        success: true
+      })
+    }
+
+  } catch (error) {
+    console.error(error.message)
+    return res.status(500).send("server error")
+  }
+})
+
+router.get('/access_email', async (req, res) => {
+  const { email } = req.query
+  try {
+    const session_id = randomstring.generate(10)
+    const number_code = randomstring.generate({
+      charset: "alphanumeric",
+      length: 6
+    })
+    session = new Session({ session_id, verify_code: number_code }, { _id: false })
+    await session.save()
+    sendMails(email, number_code).then(rsp => {
+      res.json({
+        success: true,
+        data: {
+          session_id
+        },
+        error: null
+      })
+    }).catch(e => res.json({
+      success: false,
+      data: null,
+      error: e.message
+    }))
+  } catch (error) {
+    return res.status(500).send("server error")
+  }
+})
+
+router.get('/verify', async (req, res) => {
+  const { verify_code, session_id } = req.query
+  try {
+    const session = await Session.findOne({ session_id })
+    if (session.verify_code === verify_code) {
+      res.json({
+        success: true,
+        data: null,
+        error: null
+      })
+    } else {
+      res.json({
+        success: false,
+        data: null,
+        error: null
+      })
+    }
+  } catch (error) {
+    return res.status(500).send("server error")
+  }
+})
 router.post('/register', async (req, res) => {
   const { email, password, name, shopName } = req.body;
-
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      errors: errors.array()
-    })
-  }
-
   try {
     let user = await User.exists({ email })
     if (user === true)
@@ -47,9 +139,10 @@ router.post('/register', async (req, res) => {
 
       user = new User({ name, email, password: newpassword, avata, shopName })
       await user.save();
+      const token = createLoginToken(user)
       res.json({
         data: {
-          status: true
+          token
         },
         error: null,
         success: true
@@ -60,6 +153,7 @@ router.post('/register', async (req, res) => {
     res.status(500).send("server error")
   }
 })
+
 router.get("/", checkValidRequest, async (req, res) => {
   let { id } = req.user
   try {
@@ -74,36 +168,8 @@ router.get("/", checkValidRequest, async (req, res) => {
     res.status(500).send("server error")
   }
 })
-router.post("/email", (req, res) => {
-  const {
-    email
-  } = req.body
-  try {
-    sendMails(email, "Minh Tri").then(value => {
-      console.log(value)
-      res.json({
-        status: true
-      })
-    }).catch(e => {
-      console.log(e)
-      res.send(e)
-    })
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).send("server error")
-  }
-})
 
-router.post('/signin', checkValidFormData(null, "email", "password"), async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      data: null,
-      error: errors.array(),
-      success: false
-    })
-  }
-
+router.post('/signin', async (req, res) => {
   try {
     let { email, password } = req.body
     let user = await User.findOne({ email })
@@ -193,6 +259,43 @@ router.put('/avata', checkValidRequest, upload.single('avatar'), async (req, res
   res.json({
     status: true
   })
+})
+
+
+router.get('/check-step', async (req, res) => {
+  const { email } = req.query
+  console.log(email)
+  try {
+    const user = await User.findOne({ email })
+    res.json({
+      success: true,
+      error: null,
+      data: {
+        user
+      }
+    })
+  } catch (error) {
+    return res.status(500).send("server error")
+
+  }
+})
+
+router.get('/updateStep', async (req, res) => {
+  const { id } = req.query
+  // const { code, shopName } = req.body
+  console.log(id)
+  try {
+    const user = await User.findByIdAndUpdate({ _id: id }, {
+      step: 2
+    })
+    console.log(user)
+    res.json({
+      success: true
+    })
+
+  } catch (error) {
+    return res.status(500).send("server error")
+  }
 })
 
 module.exports = router

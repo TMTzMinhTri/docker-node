@@ -23,6 +23,7 @@ router.get('/callback', (req, res) => {
 
 router.get('/', checkValidRequest, async (req, res) => {
   const { id } = req.user
+  console.log(req.query)
   const data = {
     client_id: process.env.API_key,
     client_secret: process.env.secret_key,
@@ -43,7 +44,7 @@ router.get('/', checkValidRequest, async (req, res) => {
   axios(options).then(rsp => {
     const { access_token, refresh_token, token_type } = rsp.data
     User.findByIdAndUpdate({ _id: id }, { access_token: `${token_type} ${access_token}`, refresh_token }, (err, user) => {
-      if (error) {
+      if (err) {
         res.json({
           data: null,
           error: {

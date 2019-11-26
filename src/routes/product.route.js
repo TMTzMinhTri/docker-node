@@ -44,4 +44,59 @@ router.get('/', checkValidRequest, async (req, res) => {
   })
 })
 
+
+router.get('/orders', checkValidRequest, async (req, res) => {
+  const { id } = req.user
+  const user = await User.findById({ _id: id })
+  console.log(user)
+  const path = `https://${user.shopName}.myharavan.com/admin/orders.json`
+  axios.get(path, {
+    method: "GET",
+    headers: {
+      Authorization: user.access_token
+    }
+  }).then(rsp => {
+    const orders = rsp.data.orders.map(item => {
+      return {
+        billing_address: {
+          country: item.billing_address.country,
+          name: item.billing_address.name,
+          phone: item.billing_address.phone,
+          province: item.billing_address.province,
+          district: item.billing_address.district,
+          ward: item.billing_address.ward,
+          address1: item.billing_address.address1,
+          address2: item.billing_address.address2
+        },
+        customer: {
+          email: item.customer.email,
+          orders_count: item.customer.orders_count,
+          total_spent: item.customer.total_spent,
+          updated_at: item.customer.updated_at,
+          birthday: item.customer.birthday,
+          gender: item.customer.gender,
+          note: item.customer.note
+        },
+        gateway: item.gateway,
+        line_items: item.line_items.map(product => {
+          return {
+            price: product.price,
+            product_id: product.product_id,
+            image: product.image,
+            name: product.name,
+            vendor: product.vendor,
+            title: product.title,
+            grams: product.grams
+          }
+        })
+
+      }
+    })
+    res.json({
+      data: orders,
+      success: true,
+      error: null
+    })
+  })
+})
 module.exports = router
