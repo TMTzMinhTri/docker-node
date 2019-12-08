@@ -5,7 +5,8 @@ const User = require('../models/user.modal')
 const {
   checkValidRequest
 } = require('../services/utils')
-
+const cloudinary = require('../services/cloudinary.config')
+const upload = require('../services/multer.config')
 
 router.get('/', checkValidRequest, async (req, res) => {
   const { id } = req.user
@@ -99,4 +100,61 @@ router.get('/orders', checkValidRequest, async (req, res) => {
     })
   })
 })
+
+router.post('/', checkValidRequest, upload.single('image'), async (req, res) => {
+  req.body.image = req.file.path
+  const { id } = req.user
+  const { title, product_type, vendor, variants } = req.body
+  try {
+    let imageUrl = await cloudinary.uploader.upload(req.body.image, {
+      tags: 'images_haravan_product'
+    })
+    const user = await User.findById({ _id: id })
+    const path = `https://${user.shopName}.myharavan.com/admin/products.json`
+
+    axios.post(path, JSON.stringify({
+      product: {
+        title,
+        vendor,
+        product_type,
+        variants,
+        images: [{
+          src: imageUrl.secure_url
+        }]
+      }
+    }), {
+      headers: {
+        'Content-Type': "application/json",
+        "Authorization": user.access_token
+      }
+    }).then(rsp => {
+      const data = rsp.data, { product } = data
+
+      res.json({
+        data: {
+          id: product.id,
+          handle: product.handle,
+          created_at: product.created_at,
+          images: product.images,
+          vendor: product.vendor,
+          title: product.title,
+          variants: product.variants.map(item => {
+            return {
+              id: item.id,
+              price: product.price,
+              product_id: product.product_id,
+              title: product.title
+            }
+          })
+        },
+        error: null,
+        success: true
+      })
+    }).catch(e => res.send(e.message))
+  } catch (error) {
+    return res.status(500).send(error.message)
+  }
+
+})
+
 module.exports = router
